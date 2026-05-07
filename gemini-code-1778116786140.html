@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <title>中南海模擬器 1989</title>
+    <style>
+        :root { --main-red: #8b0000; --gold: #ffd700; }
+        body { background-color: #222; color: #eee; font-family: "PingFang TC", "Microsoft JhengHei", sans-serif; margin: 0; display: flex; justify-content: center; align-items: center; height: 100vh; }
+        #game-window { width: 600px; background: #333; border: 4px solid var(--gold); padding: 25px; box-shadow: 0 0 30px rgba(0,0,0,0.7); position: relative; }
+        h1 { color: var(--gold); text-align: center; font-size: 1.5rem; text-shadow: 2px 2px 4px black; margin-top: 0; }
+        #stats-bar { display: flex; justify-content: space-around; background: #444; padding: 10px; margin-bottom: 20px; border-radius: 5px; font-size: 0.9rem; }
+        .stat { color: var(--gold); }
+        #narrative { height: 180px; font-size: 1.1rem; line-height: 1.6; border-left: 4px solid var(--main-red); padding-left: 15px; margin-bottom: 20px; overflow-y: auto; }
+        .choice-list { display: grid; grid-template-columns: 1fr; gap: 12px; }
+        button { background: #555; color: white; border: 1px solid var(--gold); padding: 12px; cursor: pointer; transition: 0.2s; font-size: 1rem; text-align: left; }
+        button:hover { background: var(--main-red); color: white; border-color: white; }
+        #overlay { display:none; position:absolute; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.95); z-index:100; flex-direction:column; justify-content:center; align-items:center; text-align:center; padding: 20px; box-sizing: border-box; }
+        .badge { font-weight: bold; font-size: 1.4rem; margin-bottom: 15px; color: var(--main-red); }
+    </style>
+</head>
+<body>
+
+<div id="game-window">
+    <h1>🚩 中南海大難題 1989 🚩</h1>
+    <div id="stats-bar">
+        <div>學生憤怒值: <span id="stat-anger" class="stat">0</span></div>
+        <div>元老不滿值: <span id="stat-old" class="stat">0</span></div>
+    </div>
+    <div id="narrative">正在召開中央政治局會議...</div>
+    <div class="choice-list" id="choices"></div>
+
+    <div id="overlay">
+        <div class="badge" id="end-title"></div>
+        <p id="end-desc"></p>
+        <button onclick="location.reload()" style="text-align:center">重新進入歷史長河</button>
+    </div>
+</div>
+
+<script>
+    let anger = 10;
+    let oldMan = 10;
+
+    const story = {
+        start: {
+            text: "1989年4月15日，胡耀邦過世。廣場上學生越聚越多，甚至有人想衝進新華門。黨內元老們在你背後咳嗽，暗示你該表態了。",
+            options: [
+                { text: "發布《人民日報》社論：這是「動亂」！", next: "editorial", dAnger: 40, dOld: -10 },
+                { text: "親自去廣場安撫學生，說「我們來晚了」。", next: "visit", dAnger: -30, dOld: 40 },
+                { text: "先不管了，我比較關心戈巴契夫下週要來訪。", next: "gorbachev", dAnger: 10, dOld: 5 }
+            ]
+        },
+        editorial: {
+            text: "4月26日社論發布後，學生被激怒了，遊行人數激增到十萬人。元老們讚許你的果斷，但國際媒體開始盯著你看。",
+            options: [
+                { text: "強硬到底，宣布戒嚴！", next: "martial_law", dAnger: 50, dOld: -20 },
+                { text: "態度轉軟，邀請學生代表進來喝茶談判。", next: "dialogue", dAnger: -20, dOld: 30 }
+            ]
+        },
+        visit: {
+            text: "你去了廣場。學生們哭了，但元老們在電視機前氣炸了。他們覺得你軟弱無能，像個叛徒。",
+            options: [
+                { text: "堅持改革，準備辭職以示負責。", next: "resign", dAnger: 0, dOld: 100 },
+                { text: "趕緊回辦公室寫檢討，向老同志們認錯。", next: "start", dAnger: 10, dOld: -20 }
+            ]
+        },
+        gorbachev: {
+            text: "蘇聯老大哥來了。全世界的鏡頭都在天安門，學生卻在絕食。如果你現在動用暴力，全世界都會看到 live 直播。",
+            options: [
+                { text: "忍到他走，再跟學生算帳。", next: "wait_end", dAnger: 20, dOld: 20 },
+                { text: "在國宴上偷偷問戈巴契夫怎麼處理這種事。", next: "advice", dAnger: 0, dOld: 10 }
+            ]
+        },
+        dialogue: {
+            text: "談判破裂。學生要求承認運動是愛國的，元老要求你立刻清場。你感覺左右為難，血壓飆升。",
+            options: [
+                { text: "聽老同志的，調動軍隊進京。", next: "june4", dAnger: 100, dOld: -50 },
+                { text: "宣布生病休假，躲進醫院不見客。", next: "hospital", dAnger: 10, dOld: 50 }
+            ]
+        },
+        advice: {
+            text: "戈巴契夫笑了笑，說他自己也頭痛。這時廣場傳來學生要推倒圍牆的消息。",
+            options: [
+                { text: "不能再拖了，坦克出動！", next: "june4", dAnger: 100, dOld: -50 }
+            ]
+        },
+        // 結局
+        june4: {
+            text: "6月4日凌晨。你做出了那個決定。廣場清空了，但你的名字從此與『鐵腕』掛鉤。",
+            end: { title: "【最後的強人結局】", desc: "你保住了權位，但接下來三十年，你每年這天都要神隱，且全世界都在問你那天發生了什麼。" }
+        },
+        resign: {
+            text: "你被軟禁了。你在小院子裡看著夕陽，雖然丟了江山，但學生們在心裡給了你一個位置。",
+            end: { title: "【紫陽式結局】", desc: "你成了黨內的禁忌。許多年後，年輕人在網路上用各種代碼提到你。" }
+        },
+        hospital: {
+            text: "你躲在醫院，元老們直接跳過你下令。清場還是發生了。",
+            end: { title: "【縮頭烏龜結局】", desc: "你成功甩鍋，但也失去了權力。歷史書對你的評價只有四個字：無所作為。" }
+        }
+    };
+
+    function loadNode(key) {
+        const node = story[key];
+        document.getElementById('narrative').innerText = node.text;
+        const container = document.getElementById('choices');
+        container.innerHTML = '';
+
+        if (node.end) {
+            document.getElementById('overlay').style.display = 'flex';
+            document.getElementById('end-title').innerText = node.end.title;
+            document.getElementById('end-desc').innerText = node.end.desc;
+            return;
+        }
+
+        node.options.forEach(o => {
+            const btn = document.createElement('button');
+            btn.innerText = o.text;
+            btn.onclick = () => {
+                anger = Math.max(0, anger + (o.dAnger || 0));
+                oldMan = Math.max(0, oldMan + (o.dOld || 0));
+                document.getElementById('stat-anger').innerText = anger;
+                document.getElementById('stat-old').innerText = oldMan;
+
+                if (anger >= 100) loadNode('june4');
+                else if (oldMan >= 100) loadNode('resign');
+                else loadNode(o.next);
+            };
+            container.appendChild(btn);
+        });
+    }
+
+    loadNode('start');
+</script>
+
+</body>
+</html>
